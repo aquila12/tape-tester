@@ -123,19 +123,22 @@ class TapeTest:
 		)
 
 		snrs = signal_powers / noise_powers
-		for i, snr in enumerate(snrs):
-			t = ts[i]
-			# print("t", round(t, 3), "SNR", dB(snr, places = 2), "dB")
-
 		best_snr = snrs.max()
 		i = [i for i, snr in enumerate(snrs) if snr == best_snr][0]
 		print("Best SNR", dB(best_snr, places = 2), "dB at", round(ts[i], 3))
 
 		power_range = range(iround(i - self.fs), i) # 1 second
 		avg_power = np.var(signal[power_range])
-		self.best_level = avg_power
+		self.best_level = avg_power - self.noise_floor_power
 		print("Best level", dB(avg_power, places = 2), "dB1")
 		print("Level to noise floor", dB(self.best_level / self.noise_floor_power, places = 2), "dB")
+
+	def test_thd(self):
+		signal = self.get_period_data(2)
+		# Use welch's method to FFT over the whole segment
+		# Sum bins for f = 1000
+		# Sum bins for f = N * 1000 N > 1
+		# Divide out
 
 	# def get_spectrum(self, data, ):
 	# 	print(signal, sample_freq, SPECTRUM_SIZE)
