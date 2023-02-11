@@ -1,0 +1,88 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+from __future__ import print_function
+import scipy.io.wavfile as wavfile
+import scipy
+import scipy.signal
+import scipy.fftpack
+import numpy as np
+from matplotlib import pyplot as plt
+import re
+import sys
+
+SPECTRUM_SIZE = 4096
+
+ifile = sys.argv[1]
+#ofile = re.sub(r'wav$', 'csv', ifile)
+
+def get_spectrum(signal, sample_freq):
+	print(signal, sample_freq, SPECTRUM_SIZE)
+	return scipy.signal.welch(signal, fs = sample_freq, nperseg = SPECTRUM_SIZE)
+	#window = 'hann', scaling = 'spectrum',
+
+def band_bucket(frequency, sample_freq):
+	bucket = round(SPECTRUM_SIZE * frequency / sample_freq)
+	return int(bucket)
+
+def bucket_freq(bucket, sample_freq):
+	return float(bucket) / SPECTRUM_SIZE * sample_freq
+
+fs, signal = wavfile.read(ifile)
+Ts = 1.0 / fs # sampling interval in time
+
+print ("Sample Frequency", fs)
+print ("Sample Period", Ts)
+
+if len(signal.shape) == 2: # Multichannel
+    print ("Channels", signal.shape[1])
+    signal = signal.sum(axis=1) / signal.shape[1]
+else:
+    print ("Channels", 1)
+
+N = signal.shape[0]
+
+print ("Sample count", N)
+print ("Time", N * Ts)
+
+t = scipy.arange(0, N * Ts, Ts) # time vector as scipy arange field / numpy.ndarray
+FFT = abs(scipy.fft(signal))
+FFT_side = FFT[range(N/2)] # one side FFT range
+
+freqs = scipy.fftpack.fftfreq(signal.size, d = Ts)
+fft_freqs = np.array(freqs)
+
+freqs_side = freqs[range(N/2)] # one side frequency range
+fft_freqs_side = np.array(freqs_side)
+
+ # = scipy.fftpack.fftfreq(SPECTRUM_SIZE, float(fs) / SPECTRUM_SIZE)
+freqs_spectrum, spectrum = get_spectrum(signal, fs)
+
+plt.subplot(411)
+p1 = plt.plot(t, signal, "g") # plotting the signal
+plt.xlabel('Time')
+plt.ylabel('Amplitude')
+
+plt.subplot(412)
+p2 = plt.plot(freqs, FFT, "r") # plotting the complete fft spectrum
+plt.xlabel('Frequency (Hz)')
+plt.ylabel('Count dbl-sided')
+
+plt.subplot(413)
+p3 = plt.plot(freqs_side, abs(FFT_side), "b") # plotting the positive fft spectrum
+plt.xlabel('Frequency (Hz)')
+plt.ylabel('Count single-sided')
+
+start_b = band_bucket(800, fs)
+end_b = band_bucket(1200, fs)
+band_range = range(start_b, end_b)
+
+plt.subplot(414)
+p4 = plt.plot(freqs_spectrum, spectrum, "m")
+plt.xlabel('Frequency (Hz)')
+plt.ylabel('PSD')
+
+for b in band_range:
+	print("PSD at", bucket_freq(b, fs), "Hz:", spectrum[b])
+
+plt.show()

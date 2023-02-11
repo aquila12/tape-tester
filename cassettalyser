@@ -1,0 +1,191 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+from __future__ import print_function
+import scipy.io.wavfile as wavfile
+import scipy
+import scipy.signal
+import scipy.fftpack
+import numpy as np
+from matplotlib import pyplot as plt
+import re
+import sys
+
+MARKER_FREQ = 1325.0 # Hz
+MARKER_LEN = 0.050	# seconds
+
+ROUGH_RESOLUTION = 100.0 # Hz
+PERIOD_TRIM = 0.1 # seconds
+
+TEST_PERIOD = 10.0 # seconds
+
+FUDGE_ALLOWANCE = 0.1
+
+CALC_RESOLUTION  = 5.0 # Hz
+
+class TapeTest:
+	def __init__(self, filename):
+		self.ifile = filename
+		self.ofile = re.sub(r'wav$', 'csv', filename)
+		pass
+
+	# Load the input file and initial sample constants, mix down to one channel
+	def load_input(self):
+		sample_freq, signal = wavfile.read(self.ifile)
+
+		self.fs = float(sample_freq)
+		self.Ts = 1.0 / self.fs
+		self.signal = mixdown(signal)
+
+		print('Loaded', len(self.signal), 'samples')
+
+	def spectro_sn(self, signal, f_bin, f0, bandwidth, **kwargs):
+		fft_size = iround(self.fs / f_bin)
+		max_deviation = float(bandwidth) / 2.0
+
+		fs, ts, spectro = scipy.signal.spectrogram(signal, self.fs, nperseg = fft_size, window = 'hamming', mode = 'psd')
+		buckets = [i for i, f in enumerate(fs) if abs(f - f0) <= max_deviation]
+
+		print("Spectrogram scan for", round(f0, 2), "Hz using FFT size", fft_size, "across", len(buckets), "bins")
+
+		signal_powers = spectro[buckets, :].sum(axis = 0)
+		total_powers = spectro.sum(axis = 0)
+
+		noise_powers = total_powers - signal_powers
+		return ts, signal_powers, noise_powers
+
+	def detect_markers(self):
+		ts, signal_powers, noise_powers = self.spectro_sn(
+			self.signal, ROUGH_RESOLUTION, MARKER_FREQ, 2 * ROUGH_RESOLUTION
+		)
+
+		was_marker = False
+		sum_signal = 0.0
+		sum_noise = 0.0
+		self.markers = []
+		self.periods = []
+		start = None
+
+		for i, signal in enumerate(signal_powers):
+			t = ts[i]
+			# total = total_powers[i]
+			noise = noise_powers[i] #total - signal
+			snr = signal / noise
+
+			is_marker = snr > 1.0
+			if is_marker and not was_marker:
+				if start != None:
+					period = (start + PERIOD_TRIM, t - PERIOD_TRIM)
+					self.periods.append(period)
+					print("Period",
+							round(period[0], 3), "to", round(period[1], 3))
+				start = t
+				sum_signal = signal
+				sum_noise = noise
+			elif is_marker:
+				sum_signal += signal
+				sum_noise += noise
+			elif was_marker:
+				marker = (start, t, sum_signal / sum_noise)
+				self.markers.append(marker)
+				print("Marker",
+						round(marker[0], 3), "to", round(marker[1], 3),
+						"SNR", dB(marker[2], places = 2), "dB")
+				start = t
+			was_marker = is_marker
+
+	def check_calibration(self):
+		assert(len(self.markers) == 10)
+		assert(len(self.periods) == 9)
+		for p in self.periods:
+			p_len = p[1] - p[0]
+			assert(abs(TEST_PERIOD - p_len) < TEST_PERIOD * FUDGE_ALLOWANCE)
+
+	def run_all_tests(self):
+		self.test_noise_floor()
+		self.test_signal_level()
+
+	def get_period_data(self, period):
+		start, end = self.periods[period]
+		sample_range = range(iround(start * self.fs), iround(end * self.fs))
+		return self.signal[sample_range]
+
+	def test_noise_floor(self):
+		signal = self.get_period_data(0)
+		avg_power = np.var(signal)
+		self.noise_floor_power = avg_power
+		print("Noise floor", dB(avg_power, places = 2), "dB1")
+
+	def test_signal_level(self):
+		signal = self.get_period_data(1)
+		ts, signal_powers, noise_powers = self.spectro_sn(
+			signal, CALC_RESOLUTION, 1000, 50
+		)
+
+		snrs = signal_powers / noise_powers
+		for i, snr in enumerate(snrs):
+			t = ts[i]
+			# print("t", round(t, 3), "SNR", dB(snr, places = 2), "dB")
+
+		best_snr = snrs.max()
+		i = [i for i, snr in enumerate(snrs) if snr == best_snr][0]
+		print("Best SNR", dB(best_snr, places = 2), "dB at", round(ts[i], 3))
+
+		power_range = range(iround(i - self.fs), i) # 1 second
+		avg_power = np.var(signal[power_range])
+		self.best_level = avg_power
+		print("Best level", dB(avg_power, places = 2), "dB1")
+		print("Level to noise floor", dB(self.best_level / self.noise_floor_power, places = 2), "dB")
+
+	# def get_spectrum(self, data, ):
+	# 	print(signal, sample_freq, SPECTRUM_SIZE)
+	# 	return scipy.signal.welch(signal, fs = sample_freq, nperseg = SPECTRUM_SIZE)
+	# 	#window = 'hann', scaling = 'spectrum',
+	#
+	# # def marker_within(self, start_time, check_length):
+	# 	search_range = arange(	seconds2samples(start_time),
+	# 							seconds2samples(start_time + check_length))
+	#
+	# 	# Get the PSD for the range
+	# 	# Sum up the buckets within the accepted marker band
+	# 	# Sum all the buckets
+	# 	# Divide through and check against a threshold
+	# 	return False
+	#
+	# def locate_first_marker(self):
+	# 	# Look for a second in which there is MARKER_FREQ well above the noise floor
+	# 	# Look within that period to find where that is maximum power
+	# 	pass
+
+## Utility functions follow ##
+
+# Express a ratio in dB
+def dB(n, places = None):
+	db = 10 * np.log10(n)
+	if places:
+		return round(db, places)
+	return db
+
+# Round to an int
+def iround(n):
+	return int(round(n))
+
+# Mix a signal down
+def mixdown(signal):
+	n_dimensions = len(signal.shape)
+	if n_dimensions == 1:
+		return signal
+
+	n_channels = signal.shape[1]
+	return signal.sum(axis=1) / n_channels
+
+def main():
+	t = TapeTest(sys.argv[1])
+	t.load_input()
+	# t.rough_out()
+	t.detect_markers()
+	t.check_calibration()
+	t.run_all_tests()
+
+if __name__ == "__main__":
+	main()
