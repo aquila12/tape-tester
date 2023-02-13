@@ -8,6 +8,7 @@ import scipy.signal
 import scipy.fftpack
 import numpy as np
 from matplotlib import pyplot as plt
+import math
 import re
 import sys
 
@@ -53,6 +54,10 @@ class TapeTest:
 
 		noise_powers = total_powers - signal_powers
 		return ts, signal_powers, noise_powers
+
+	def welch(self, signal, f_bin):
+		fft_size = iround(self.fs / f_bin)
+		return scipy.signal.welch(signal, fs = self.fs, nperseg = fft_size, window = 'hamming')
 
 	def detect_markers(self):
 		ts, signal_powers, noise_powers = self.spectro_sn(
@@ -102,22 +107,32 @@ class TapeTest:
 			assert(abs(TEST_PERIOD - p_len) < TEST_PERIOD * FUDGE_ALLOWANCE)
 
 	def run_all_tests(self):
-		self.test_noise_floor()
-		self.test_signal_level()
+		tests = [
+			self.test_noise_floor,
+			self.test_signal_level,
+			self.test_freq_response #,
+			#self.test_thd,
+			#self.test_imd,
+			#self.test_ampl_linearity,
+			#self.test_square_shape,
+			#self.test_saw_shape,
+			#self.test_timing
+		]
+		for i, testMethod in enumerate(tests):
+			data = self.get_period_data(i)
+			testMethod(data)
 
 	def get_period_data(self, period):
 		start, end = self.periods[period]
 		sample_range = range(iround(start * self.fs), iround(end * self.fs))
 		return self.signal[sample_range]
 
-	def test_noise_floor(self):
-		signal = self.get_period_data(0)
+	def test_noise_floor(self, signal):
 		avg_power = np.var(signal)
 		self.noise_floor_power = avg_power
 		print("Noise floor", dB(avg_power, places = 2), "dB1")
 
-	def test_signal_level(self):
-		signal = self.get_period_data(1)
+	def test_signal_level(self, signal):
 		ts, signal_powers, noise_powers = self.spectro_sn(
 			signal, CALC_RESOLUTION, 1000, 50
 		)
@@ -133,34 +148,45 @@ class TapeTest:
 		print("Best level", dB(avg_power, places = 2), "dB1")
 		print("Level to noise floor", dB(self.best_level / self.noise_floor_power, places = 2), "dB")
 
-	def test_thd(self):
-		signal = self.get_period_data(2)
+	def test_freq_response(self, signal):
+		fs, spectrum = self.welch(signal, 100)
+		n = len(fs) - 1
+
+		bucket_1khz = np.argmin([abs(f - 1000.0) for f in fs ])
+		p_1khz = spectrum[bucket_1khz]
+		p_3db = p_1khz / 2.0
+
+		bucket_l = safe(max, [i for i, p in enumerate(spectrum) if i < bucket_1khz and p < p_3db]) or 0
+		f_l = fs[bucket_l + 1]
+
+		bucket_h = safe(min, [i for i, p in enumerate(spectrum) if i > bucket_1khz and p < p_3db]) or n
+		f_h = fs[bucket_h - 1]
+
+		print("Detected usable bandwidth", f_l, "-", f_h, "Hz")
+
+		passband = range(2 * (1 + bucket_l), bucket_h // 2)
+		max_deviation = max([dB(p / p_1khz, 2) for i, p in enumerate(spectrum) if i in passband], key = abs)
+
+		print([dB(p / p_1khz, 2) for i, p in enumerate(spectrum) if i in passband])
+
+		print("Approximate Flatness", max_deviation, "dB")
+
+		# Estimate flatness of passband
+
+	def test_thd(self, signal):
+		pass
 		# Use welch's method to FFT over the whole segment
 		# Sum bins for f = 1000
 		# Sum bins for f = N * 1000 N > 1
 		# Divide out
 
-	# def get_spectrum(self, data, ):
-	# 	print(signal, sample_freq, SPECTRUM_SIZE)
-	# 	return scipy.signal.welch(signal, fs = sample_freq, nperseg = SPECTRUM_SIZE)
-	# 	#window = 'hann', scaling = 'spectrum',
-	#
-	# # def marker_within(self, start_time, check_length):
-	# 	search_range = arange(	seconds2samples(start_time),
-	# 							seconds2samples(start_time + check_length))
-	#
-	# 	# Get the PSD for the range
-	# 	# Sum up the buckets within the accepted marker band
-	# 	# Sum all the buckets
-	# 	# Divide through and check against a threshold
-	# 	return False
-	#
-	# def locate_first_marker(self):
-	# 	# Look for a second in which there is MARKER_FREQ well above the noise floor
-	# 	# Look within that period to find where that is maximum power
-	# 	pass
-
 ## Utility functions follow ##
+
+# max / min but return None if there are no elements
+def safe(func, list, **kwargs):
+	if len(list) == 0:
+		return None
+	return func(list, **kwargs)
 
 # Express a ratio in dB
 def dB(n, places = None):
