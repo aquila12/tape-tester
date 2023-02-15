@@ -157,10 +157,9 @@ class TapeTest:
 		p_3db = p_1khz / 2.0
 
 		bucket_l = safe(max, [i for i, p in enumerate(spectrum) if i < bucket_1khz and p < p_3db]) or 0
-		f_l = fs[bucket_l + 1]
-
 		bucket_h = safe(min, [i for i, p in enumerate(spectrum) if i > bucket_1khz and p < p_3db]) or n
-		f_h = fs[bucket_h - 1]
+
+		f_l, f_h = fs[bucket_l + 1], fs[bucket_h - 1]
 
 		print("Detected usable bandwidth", f_l, "-", f_h, "Hz")
 
