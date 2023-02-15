@@ -177,9 +177,11 @@ class TapeTest:
 
 		bucket_1khz = bucket_for(1000, fs)
 		buckets_harm = buckets_for_harmonics_of(1000, fs)
+		assert(bucket_1khz not in buckets_harm)
 
 		p_1khz = float(spectrum[bucket_1khz])
 		p_harm = float(sum([spectrum[i] for i in buckets_harm]))
+		p_other = float(sum([s for i, s in enumerate(spectrum) if i not in [bucket_1khz]]))
 
 		self.thd = p_harm / p_1khz
 
@@ -188,7 +190,23 @@ class TapeTest:
 		print("Total Harmonic Distortion", dB(self.thd, 2), "dB /", round(100 * self.thd, 2), "%")
 
 	def test_imd(self, signal):
-		pass
+		fs, spectrum = self.welch(signal, 50)
+
+		buckets_fund = [bucket_for(f, fs) for f in [1000, 1100]]
+		buckets_im = buckets_for_intermodulation(1000, 1100, fs)
+		freqs = [fs[i] for i in buckets_im]
+		# freqs.sort()
+		# print(freqs)
+		for bucket in buckets_fund:
+			assert(bucket not in buckets_im)
+
+		p_fund = float(sum([spectrum[i] for i in buckets_fund]))
+		p_im = float(sum([spectrum[i] for i in buckets_im]))
+
+		self.imd = p_im / p_fund
+		# print("Fundamentals power ", dB(p_fund, 2), "dB1")
+		# print("Intermodulation power ", dB(p_im, 2), "dB1")
+		print("Intermodulation Distortion", dB(self.imd, 2), "dB /", round(100 * self.imd, 2), "%")
 
 	def test_ampl_linearity(self, signal):
 		pass
@@ -208,15 +226,33 @@ class TapeTest:
 def bucket_for(frequency, fs):
 	return np.argmin([abs(f - float(frequency)) for f in fs ])
 
-# find bucket with frequency
+# find buckets with harmonics of a fundamental frequency
 # NB O(n²)
-def buckets_for_harmonics_of(frequency, fs):
+def buckets_for_harmonics_of(fundamental, fs):
 	fmax = fs[-1]
-	freq = frequency
+	freq = fundamental
 	buckets = []
-	for freq in np.arange(2 * frequency, fmax, frequency):
+	for freq in np.arange(2 * fundamental, fmax, fundamental):
 		buckets.append(bucket_for(freq, fs))
-	return buckets
+	return set(buckets)
+
+# find buckets with intermodulation distortion harmonics up to order N
+def buckets_for_intermodulation(f1, f2, fs):
+	fmax = fs[-1]
+	nmax = 18
+	buckets = []
+	for o in range(2, nmax + 1):
+		for h1 in range(o + 1):
+			h2 = o - h1
+			# print(h1, "× f1 +", h2, "× f2")
+			# print(h1, "× f1 -", h2, "× f2")
+			fsum = abs(h1 * f1 + h2 * f2)
+			fdif = abs(h1 * f1 - h2 * f2)
+			if(fsum < fmax):
+				buckets.append(bucket_for(fsum, fs))
+			if(fdif < fmax):
+				buckets.append(bucket_for(fdif, fs))
+	return set(buckets)
 
 # max / min but return None if there are no elements
 def safe(func, list, **kwargs):
