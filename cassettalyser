@@ -110,13 +110,13 @@ class TapeTest:
 		tests = [
 			self.test_noise_floor,
 			self.test_signal_level,
-			self.test_freq_response #,
-			#self.test_thd,
-			#self.test_imd,
-			#self.test_ampl_linearity,
-			#self.test_square_shape,
-			#self.test_saw_shape,
-			#self.test_timing
+			self.test_freq_response,
+			self.test_thd,
+			self.test_imd,
+			self.test_ampl_linearity,
+			self.test_square_shape,
+			self.test_saw_shape,
+			self.test_timing
 		]
 		for i, testMethod in enumerate(tests):
 			data = self.get_period_data(i)
@@ -179,6 +179,21 @@ class TapeTest:
 		# Sum bins for f = 1000
 		# Sum bins for f = N * 1000 N > 1
 		# Divide out
+
+	def test_imd(self, signal):
+		pass
+
+	def test_ampl_linearity(self, signal):
+		pass
+
+	def test_square_shape(self, signal):
+		pass
+
+	def test_saw_shape(self, signal):
+		pass
+
+	def test_timing(self, signal):
+		pass
 
 ## Utility functions follow ##
 
