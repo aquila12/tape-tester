@@ -152,7 +152,7 @@ class TapeTest:
 		fs, spectrum = self.welch(signal, 100)
 		n = len(fs) - 1
 
-		bucket_1khz = np.argmin([abs(f - 1000.0) for f in fs ])
+		bucket_1khz = bucket_for(1000, fs)
 		p_1khz = spectrum[bucket_1khz]
 		p_3db = p_1khz / 2.0
 
@@ -173,11 +173,19 @@ class TapeTest:
 		# Estimate flatness of passband
 
 	def test_thd(self, signal):
-		pass
-		# Use welch's method to FFT over the whole segment
-		# Sum bins for f = 1000
-		# Sum bins for f = N * 1000 N > 1
-		# Divide out
+		fs, spectrum = self.welch(signal, 100)
+
+		bucket_1khz = bucket_for(1000, fs)
+		buckets_harm = buckets_for_harmonics_of(1000, fs)
+
+		p_1khz = float(spectrum[bucket_1khz])
+		p_harm = float(sum([spectrum[i] for i in buckets_harm]))
+
+		self.thd = p_harm / p_1khz
+
+		# print("Fundamental power ", dB(p_1khz, 2), "dB1")
+		# print("Harmonic power ", dB(p_harm, 2), "dB1")
+		print("Total Harmonic Distortion", dB(self.thd, 2), "dB /", round(100 * self.thd, 2), "%")
 
 	def test_imd(self, signal):
 		pass
@@ -195,6 +203,20 @@ class TapeTest:
 		pass
 
 ## Utility functions follow ##
+
+# find bucket with frequency
+def bucket_for(frequency, fs):
+	return np.argmin([abs(f - float(frequency)) for f in fs ])
+
+# find bucket with frequency
+# NB O(n²)
+def buckets_for_harmonics_of(frequency, fs):
+	fmax = fs[-1]
+	freq = frequency
+	buckets = []
+	for freq in np.arange(2 * frequency, fmax, frequency):
+		buckets.append(bucket_for(freq, fs))
+	return buckets
 
 # max / min but return None if there are no elements
 def safe(func, list, **kwargs):
