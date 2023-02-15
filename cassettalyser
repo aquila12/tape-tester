@@ -47,7 +47,7 @@ class TapeTest:
 		fs, ts, spectro = scipy.signal.spectrogram(signal, self.fs, nperseg = fft_size, window = 'hamming', mode = 'psd')
 		buckets = [i for i, f in enumerate(fs) if abs(f - f0) <= max_deviation]
 
-		print("Spectrogram scan for", round(f0, 2), "Hz using FFT size", fft_size, "across", len(buckets), "bins")
+		# print("Spectrogram scan for", round(f0, 2), "Hz using FFT size", fft_size, "across", len(buckets), "bins")
 
 		signal_powers = spectro[buckets, :].sum(axis = 0)
 		total_powers = spectro.sum(axis = 0)
@@ -82,8 +82,8 @@ class TapeTest:
 				if start != None:
 					period = (start + PERIOD_TRIM, t - PERIOD_TRIM)
 					self.periods.append(period)
-					print("Period",
-							round(period[0], 3), "to", round(period[1], 3))
+					# print("Period",
+					# 		round(period[0], 3), "to", round(period[1], 3))
 				start = t
 				sum_signal = signal
 				sum_noise = noise
@@ -93,9 +93,9 @@ class TapeTest:
 			elif was_marker:
 				marker = (start, t, sum_signal / sum_noise)
 				self.markers.append(marker)
-				print("Marker",
-						round(marker[0], 3), "to", round(marker[1], 3),
-						"SNR", dB(marker[2], places = 2), "dB")
+				# print("Marker",
+				# 		round(marker[0], 3), "to", round(marker[1], 3),
+				# 		"SNR", dB(marker[2], places = 2), "dB")
 				start = t
 			was_marker = is_marker
 
@@ -167,7 +167,7 @@ class TapeTest:
 		passband = range(2 * (1 + bucket_l), bucket_h // 2)
 		max_deviation = max([dB(p / p_1khz, 2) for i, p in enumerate(spectrum) if i in passband], key = abs)
 
-		print([dB(p / p_1khz, 2) for i, p in enumerate(spectrum) if i in passband])
+		# print([dB(p / p_1khz, 2) for i, p in enumerate(spectrum) if i in passband])
 
 		print("Approximate Flatness", max_deviation, "dB")
 
