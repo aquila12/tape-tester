@@ -209,7 +209,11 @@ class TapeTest:
 		print("Intermodulation Distortion", dB(self.imd, 2), "dB /", round(100 * self.imd, 2), "%")
 
 	def test_ampl_linearity(self, signal):
-		pass
+		fs, ts, spectro = scipy.signal.spectrogram(signal, self.fs, nperseg = fft_size, window = 'hamming', mode = 'magnitude')
+
+		# Get the tone magnitude over time
+		tone_magnitude = spectro[bucket_for(1000, fs)]
+		# Linear regression then check R² ?
 
 	def test_square_shape(self, signal):
 		pass
@@ -218,6 +222,7 @@ class TapeTest:
 		pass
 
 	def test_timing(self, signal):
+		# Need to count square transitions, but also need to identify the ~4kHz bursts
 		pass
 
 ## Utility functions follow ##
