@@ -209,11 +209,17 @@ class TapeTest:
 		print("Intermodulation Distortion", dB(self.imd, 2), "dB /", round(100 * self.imd, 2), "%")
 
 	def test_ampl_linearity(self, signal):
+		f_bin = ROUGH_RESOLUTION
+		fft_size = iround(self.fs / f_bin)
 		fs, ts, spectro = scipy.signal.spectrogram(signal, self.fs, nperseg = fft_size, window = 'hamming', mode = 'magnitude')
 
 		# Get the tone magnitude over time
 		tone_magnitude = spectro[bucket_for(1000, fs)]
 		# Linear regression then check R² ?
+
+		# Magic incantation to get array of [slope, intercept]
+		# np.linalg.lstsq(np.vstack([x, np.ones(len(x))]).T, y, rcond=None)[0]
+		# returns x (solution), residuals, rank, singulars
 
 	def test_square_shape(self, signal):
 		pass
