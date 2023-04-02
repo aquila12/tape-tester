@@ -229,9 +229,16 @@ class TapeTest:
 		print("Linearity error in-band", round(100 * self.linearity_error, 2), "%")
 
 	def test_square_shape(self, signal):
+		# Determine the "flat top" amplitude of the wave
+		# Determine rise time
+		# Determine overshoot
 		pass
 
 	def test_saw_shape(self, signal):
+		# Determine the direction of the wave
+		# Determine the rise time
+		# Determine the fall time
+		# Determine the overshoot
 		pass
 
 	def test_timing(self, signal):
