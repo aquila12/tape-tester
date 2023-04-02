@@ -229,10 +229,54 @@ class TapeTest:
 		print("Linearity error in-band", round(100 * self.linearity_error, 2), "%")
 
 	def test_square_shape(self, signal):
-		# Determine the "flat top" amplitude of the wave
-		# Determine rise time
-		# Determine overshoot
-		pass
+		# Estimate amplitude using mean absolute
+		dc = np.mean(signal)
+		signal_ac = signal - dc
+		est_amplitude = np.mean(np.absolute(signal_ac))
+		n75 = est_amplitude * 0.75
+
+		state = 0
+		last = -1
+		states = ['rise', 'high', 'fall', 'low']
+		totals = { k: { 'sum': 0.0, 'count': 0 } for k in states }
+
+		for i, x in enumerate(signal_ac):
+			s = state
+			if x > n75:
+				state = 1
+			elif x < -n75:
+				state = -1
+			else:
+				state = 0
+
+			if state != s:
+				time = (i - last) * self.Ts
+				last = i
+				if state < 0:
+					name = 'fall'
+				elif state > 0:
+					name = 'rise'
+				elif s < 0:
+					name = 'low'
+				elif s > 0:
+					name = 'high'
+				totals[name]['count'] += 1
+				totals[name]['sum'] += time
+
+		avgs = { k: totals[k]['sum'] / (totals[k]['count'] or 1) for k in states }
+
+		self.square_duty = avgs['high'] / (avgs['high'] + avgs['low'])
+		self.square_rise = avgs['rise']
+		self.square_fall = avgs['fall']
+
+		print('Square duty cycle', round(100 * self.square_duty, 2), "%")
+		print('Square rise/fall time',
+			round(1000000 * self.square_rise, 2),
+			"/",
+			round(1000000 * self.square_fall, 2),
+			"µs")
+
+		# Missing overshoot test.  Rise time maybe could be improved too
 
 	def test_saw_shape(self, signal):
 		# Determine the direction of the wave
