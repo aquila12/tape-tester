@@ -215,11 +215,18 @@ class TapeTest:
 
 		# Get the tone magnitude over time
 		tone_magnitude = spectro[bucket_for(1000, fs)]
-		# Linear regression then check R² ?
 
-		# Magic incantation to get array of [slope, intercept]
-		# np.linalg.lstsq(np.vstack([x, np.ones(len(x))]).T, y, rcond=None)[0]
-		# returns x (solution), residuals, rank, singulars
+		# Linear regression then check R²
+		x = ts
+		y = tone_magnitude
+		result = np.linalg.lstsq(np.vstack([x, np.ones(len(x))]).T, y, rcond=None)
+		# m, c = result[0]
+		sum_of_squares = np.dot(y, y)
+		r2 = 1 - (result[1] / sum_of_squares)
+		self.linearity_error = 1 - abs(r2)
+
+		# print("Start Amplitude", c, "Slope", m)
+		print("Linearity error in-band", round(100 * self.linearity_error, 2), "%")
 
 	def test_square_shape(self, signal):
 		pass
